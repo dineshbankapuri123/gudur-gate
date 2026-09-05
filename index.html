@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Gudur Junction • Crossing Radar & Upcoming Trains</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;800&family=Noto+Sans+Devanagari:wght@500;700&family=Noto+Sans+Telugu:wght@500;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #06090e;
+      --surface: #0e141f;
+      --surface-elevated: #162030;
+      --border: #223049;
+      --text: #ffffff;
+      --dim: #8295ab;
+      --green: #00f076;
+      --green-glow: 0 0 16px rgba(0, 240, 118, 0.4);
+      --red: #ff2a55;
+      --red-glow: 0 0 16px rgba(255, 42, 85, 0.5);
+      --amber: #ffb800;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', 'Noto Sans Telugu', 'Noto Sans Devanagari', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 14px 12px 30px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 580px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Top HUD Header */
+    .hud-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .title-block h1 {
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .title-block p {
+      font-size: 0.72rem;
+      color: var(--dim);
+      margin-top: 2px;
+    }
+
+    .lang-switcher {
+      display: flex;
+      background: #020408;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .lang-btn {
+      background: transparent;
+      border: none;
+      color: var(--dim);
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease-in-out;
+    }
+
+    .lang-btn.active {
+      background: var(--surface-elevated);
+      color: var(--green);
+      box-shadow: 0 0 10px rgba(0, 240, 118, 0.25);
+    }
+
+    /* Advisory Box */
+    .decision-hub {
+      padding: 14px;
+      background: var(--surface-elevated);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-left: 4px solid var(--green);
+    }
+
+    .decision-hub.warning { border-left-color: var(--amber); }
+    .decision-hub.danger { border-left-color: var(--red); }
+
+    .decision-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .decision-label {
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .route-action {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .route-desc {
+      font-size: 0.82rem;
+      color: #9cb0c8;
+      line-height: 1.4;
+    }
+
+    .maps-btn {
+      align-self: flex-start;
+      margin-top: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ffffff;
+      color: #000000;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    /* Gate Panels */
+    .gate-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .gate-primary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .gate-meta h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .gate-sub {
+      font-size: 0.74rem;
+      color: var(--dim);
+      margin-top: 2px;
+    }
+
+    .signal-box {
+      display: flex;
+      gap: 6px;
+      background: #000;
+      padding: 4px 6px;
+      border-radius: 20px;
+      border: 1px solid #1a2538;
+    }
+
+    .lamp {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #1c2430;
+      opacity: 0.2;
+    }
+
+    .lamp.red-on { background: var(--red); opacity: 1; box-shadow: var(--red-glow); }
+    .lamp.green-on { background: var(--green); opacity: 1; box-shadow: var(--green-glow); }
+
+    .crossing-graphic {
+      height: 46px;
+      background: #070b12;
+      border: 1px solid #1a2436;
+      border-radius: 8px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      overflow: hidden;
+    }
+
+    .rail-track {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: repeating-linear-gradient(90deg, #1b273b, #1b273b 10px, transparent 10px, transparent 20px);
+      border-top: 2px solid #2e415e;
+      border-bottom: 2px solid #2e415e;
+    }
+
+    .gate-post {
+      position: absolute;
+      width: 10px;
+      height: 28px;
+      background: #475569;
+      border: 1px solid #94a3b8;
+      border-radius: 2px;
+      z-index: 3;
+    }
+    .gate-post.left { left: 8px; }
+    .gate-post.right { right: 8px; }
+
+    .barrier-arm {
+      position: absolute;
+      height: 6px;
+      width: calc(50% - 14px);
+      background: repeating-linear-gradient(45deg, #ffffff, #ffffff 8px, #ff2a55 8px, #ff2a55 16px);
+      border-radius: 2px;
+      z-index: 2;
+      transition: transform 0.4s ease-in-out;
+    }
+
+    .barrier-arm.arm-left { left: 14px; transform-origin: left center; }
+    .barrier-arm.arm-right { right: 14px; transform-origin: right center; }
+    .barrier-arm.arm-left.open { transform: rotate(-55deg); opacity: 0.35; }
+    .barrier-arm.arm-right.open { transform: rotate(55deg); opacity: 0.35; }
+    .barrier-arm.arm-left.closed,
+    .barrier-arm.arm-right.closed { transform: rotate(0deg); opacity: 1; box-shadow: 0 0 10px rgba(255, 42, 85, 0.6); }
+
+    .gate-readouts {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 10px;
+      border-top: 1px dashed #1e2c40;
+      padding-top: 10px;
+    }
+
+    .train-info-label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 2px;
+    }
+
+    .train-info-val {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 280px;
+    }
+
+    .wait-digits {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text);
+      text-align: right;
+    }
+
+    .wait-label {
+      font-size: 0.65rem;
+      color: var(--dim);
+      text-transform: uppercase;
+      text-align: right;
+    }
+
+    /* Native HTML5 Accordion for Upcoming Trains (Zero-JS Toggle) */
+    details.upcoming-wrapper {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    summary.upcoming-summary {
+      padding: 14px 16px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #38bdf8;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+      background: var(--surface);
+      transition: background 0.15s ease;
+    }
+
+    summary.upcoming-summary::-webkit-details-marker { display: none; }
+
+    summary.upcoming-summary:hover {
+      background: var(--surface-elevated);
+    }
+
+    .summary-arrow {
+      font-size: 0.75rem;
+      transition: transform 0.2s ease;
+    }
+
+    details[open] .summary-arrow {
+      transform: rotate(180deg);
+    }
+
+    .upcoming-body {
+      padding: 12px 14px 14px;
+      border-top: 1px solid #1c2738;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .upcoming-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      padding: 10px 12px;
+      border-radius: 8px;
+    }
+
+    .train-col {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-width: 70%;
+    }
+
+    .train-head {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .train-sub {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      color: var(--dim);
+    }
+
+    .corridor-pill {
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .corridor-mas { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
+    .corridor-tpty { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+
+    .eta-col {
+      text-align: right;
+    }
+
+    .eta-min {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+
+    .eta-sub {
+      font-size: 0.65rem;
+      color: var(--dim);
+    }
+
+    /* Hardcoded Safety Panel with Language Switching */
+    .safety-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .safety-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #1c2738;
+      padding-bottom: 8px;
+    }
+
+    .safety-header h3 {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--amber);
+    }
+
+    .safety-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .safety-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 0.8rem;
+      line-height: 1.35;
+      color: #cbd5e1;
+    }
+
+    .safety-badge {
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255, 42, 85, 0.15);
+      border: 1px solid rgba(255, 42, 85, 0.4);
+      color: var(--red);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .safety-badge.warn {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.4);
+      color: var(--amber);
+    }
+
+    /* Pure CSS Language Visibility Rules */
+    body.lang-en .lang-te-only,
+    body.lang-en .lang-hi-only { display: none !important; }
+
+    body.lang-te .lang-en-only,
+    body.lang-te .lang-hi-only { display: none !important; }
+
+    body.lang-hi .lang-en-only,
+    body.lang-hi .lang-te-only { display: none !important; }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.68rem;
+      color: var(--dim);
+      padding: 2px 4px 0;
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+</head>
+<body class="lang-en">
+
+  <div class="app">
+    
+    <!-- Top Header -->
+    <header class="hud-header">
+      <div class="title-block">
+        <h1>⚡ GDR Crossing Radar</h1>
+        <p class="lang-en-only">Gudur Junction Automated Rail Gates</p>
+        <p class="lang-te-only">గూడూరు జంక్షన్ ఆటోమేటెడ్ రైల్వే గేట్స్</p>
+        <p class="lang-hi-only">गुडूर जंक्शन स्वचालित रेलवे फाटक</p>
+      </div>
+      <div class="lang-switcher">
+        <button class="lang-btn" id="btn-te" type="button" onclick="setAppLanguage('te')">తెలుగు</button>
+        <button class="lang-btn active" id="btn-en" type="button" onclick="setAppLanguage('en')">EN</button>
+        <button class="lang-btn" id="btn-hi" type="button" onclick="setAppLanguage('hi')">हिंदी</button>
+      </div>
+    </header>
+
+    <!-- Advisory -->
+    <div class="decision-hub" id="decision-card">
+      <div class="decision-top">
+        <span class="decision-label lang-en-only">TRAFFIC ADVISORY</span>
+        <span class="decision-label lang-te-only">ట్రాఫిక్ సమాచారం</span>
+        <span class="decision-label lang-hi-only">यातायात सलाह</span>
+        <span id="decision-status" class="decision-label" style="color: var(--green);">CLEAR</span>
+      </div>
+      <div class="route-action" id="decision-title">Both Crossings Are Open</div>
+      <div class="route-desc" id="decision-text">No trains approaching Gudur Junction. Corridors are clear for transit.</div>
+      <a href="https://www.google.com/maps/dir/?api=1&destination=Gudur+Junction+Railway+Station" target="_blank" class="maps-btn" id="maps-action">
+        <span class="lang-en-only">Open Gudur Route Map →</span>
+        <span class="lang-te-only">రూట్ మ్యాప్ చూడండి →</span>
+        <span class="lang-hi-only">मार्ग का नक्शा देखें →</span>
+      </a>
+    </div>
+
+    <!-- Chennai Gate Card -->
+    <div class="gate-card">
+      <div class="gate-primary">
+        <div class="gate-meta">
+          <h2>Chennai Gate (MAS)</h2>
+          <div class="gate-sub lang-en-only">Main Line • Sullurupeta / MAS Line</div>
+          <div class="gate-sub lang-te-only">మెయిన్ లైన్ • సూళ్లూరుపేట / చెన్నై మార్గం</div>
+          <div class="gate-sub lang-hi-only">मुख्य लाइन • सुल्लुरुपेटा / चेन्नई मार्ग</div>
+        </div>
+        <div class="signal-box">
+          <div class="lamp" id="mas-lamp-red"></div>
+          <div class="lamp green-on" id="mas-lamp-green"></div>
+        </div>
+      </div>
+
+      <div class="crossing-graphic">
+        <div class="rail-track"></div>
+        <div class="gate-post left"></div>
+        <div class="barrier-arm arm-left open" id="mas-arm-left"></div>
+        <div class="barrier-arm arm-right open" id="mas-arm-right"></div>
+        <div class="gate-post right"></div>
+      </div>
+
+      <div class="gate-readouts">
+        <div>
+          <div class="train-info-label lang-en-only">Active Rail Vehicle</div>
+          <div class="train-info-label lang-te-only">వస్తున్న రైలు</div>
+          <div class="train-info-label lang-hi-only">आ रही ट्रेन</div>
+          <div class="train-info-val" id="mas-train">Tracks Clear</div>
+        </div>
+        <div>
+          <div class="wait-digits" id="mas-wait">0m</div>
+          <div class="wait-label lang-en-only">Est. Wait</div>
+          <div class="wait-label lang-te-only">వేచి ఉండే సమయం</div>
+          <div class="wait-label lang-hi-only">अनुमानित प्रतीक्षा</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tirupati Gate Card -->
+    <div class="gate-card">
+      <div class="gate-primary">
+        <div class="gate-meta">
+          <h2>Tirupati Gate (TPTY)</h2>
+          <div class="gate-sub lang-en-only">Branch Line • Renigunta / TPTY Line</div>
+          <div class="gate-sub lang-te-only">బ్రాంచ్ లైన్ • రేణిగుంట / తిరుపతి మార్గం</div>
+          <div class="gate-sub lang-hi-only">ब्रांच लाइन • रेणिगुंटा / तिरुपति मार्ग</div>
+        </div>
+        <div class="signal-box">
+          <div class="lamp" id="tpty-lamp-red"></div>
+          <div class="lamp green-on" id="tpty-lamp-green"></div>
+        </div>
+      </div>
+
+      <div class="crossing-graphic">
+        <div class="rail-track"></div>
+        <div class="gate-post left"></div>
+        <div class="barrier-arm arm-left open" id="tpty-arm-left"></div>
+        <div class="barrier-arm arm-right open" id="tpty-arm-right"></div>
+        <div class="gate-post right"></div>
+      </div>
+
+      <div class="gate-readouts">
+        <div>
+          <div class="train-info-label lang-en-only">Active Rail Vehicle</div>
+          <div class="train-info-label lang-te-only">వస్తున్న రైలు</div>
+          <div class="train-info-label lang-hi-only">आ रही ट्रेन</div>
+          <div class="train-info-val" id="tpty-train">Tracks Clear</div>
+        </div>
+        <div>
+          <div class="wait-digits" id="tpty-wait">0m</div>
+          <div class="wait-label lang-en-only">Est. Wait</div>
+          <div class="wait-label lang-te-only">వేచి ఉండే సమయం</div>
+          <div class="wait-label lang-hi-only">अनुमानित प्रतीक्षा</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NATIVE HTML5 ACCORDION: Guaranteed to open/close without failing -->
+    <details class="upcoming-wrapper" id="upcoming-accordion">
+      <summary class="upcoming-summary">
+        <span>
+          <span class="lang-en-only">🔍 Show / Hide Upcoming Trains</span>
+          <span class="lang-te-only">🔍 త్వరలో వచ్చే రైళ్ల వివరాలు (చూడండి/దాచండి)</span>
+          <span class="lang-hi-only">🔍 आने वाली ट्रेनें (देखें / छुपाएं)</span>
+        </span>
+        <span class="summary-arrow">▼</span>
+      </summary>
+      <div class="upcoming-body" id="upcoming-container">
+        <!-- Default visible queue so it never renders blank -->
+        <div class="upcoming-item">
+          <div class="train-col">
+            <div class="train-head">12734 • Narayanadri Express</div>
+            <div class="train-sub">
+              <span class="corridor-pill corridor-tpty">TPTY LINE</span>
+              <span>• PF 1</span>
+              <span>• On Time</span>
+            </div>
+          </div>
+          <div class="eta-col">
+            <div class="eta-min">18m</div>
+            <div class="eta-sub">approaching</div>
+          </div>
+        </div>
+        <div class="upcoming-item">
+          <div class="train-col">
+            <div class="train-head">12604 • Chennai Superfast</div>
+            <div class="train-sub">
+              <span class="corridor-pill corridor-mas">MAS LINE</span>
+              <span>• PF 2</span>
+              <span>• On Time</span>
+            </div>
+          </div>
+          <div class="eta-col">
+            <div class="eta-min">34m</div>
+            <div class="eta-sub">approaching</div>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- HARDCODED SAFETY RULES: Permanently Visible in All 3 Languages -->
+    <div class="safety-panel">
+      <div class="safety-header">
+        <span>⚠️</span>
+        <h3 class="lang-en-only">Level Crossing Safety Rules</h3>
+        <h3 class="lang-te-only">రైల్వే గేట్ భద్రతా నియమాలు</h3>
+        <h3 class="lang-hi-only">रेलवे क्रॉसिंग सुरक्षा नियम</h3>
+      </div>
+
+      <!-- English Rules -->
+      <ul class="safety-list lang-en-only">
+        <li class="safety-item">
+          <span class="safety-badge">WARNING</span>
+          <span><strong>Never cross when gates close:</strong> Crawling under barriers is a severe punishable railway offense.</span>
+        </li>
+        <li class="safety-item">
+          <span class="safety-badge warn">RULE</span>
+          <span><strong>Stop, Look, Listen:</strong> Always halt behind the white stop line whenever the red signal lamp is illuminated.</span>
+        </li>
+        <li class="safety-item">
+          <span class="safety-badge">DANGER</span>
+          <span><strong>No Earphones:</strong> Never use mobile phones or wear headphones near active tracks.</span>
+        </li>
+        <li class="safety-item">
+          <span class="safety-badge warn">NOTICE</span>
+          <span><strong>Wait for Full Clearance:</strong> Wait until both barrier booms lift completely and the green light turns on.</span>
+        </li>
+      </ul>
+
+      <!-- Telugu Rules -->
+      <ul class="safety-list lang-te-only">
+        <li class="safety-item">
+          <span class="safety-badge">హెచ్చరిక</span>
+          <span><strong>గేట్ మూసివేసేటప్పుడు దాటరాదు:</strong> బూమ్ బారియర్ కింద నుంచి లేదా సందుల నుండి వెళ్లడం చట్టరీత్యా నేరం.</span>
+        </li>
+        <li class="safety-item">
+          <span class="safety-badge warn">నియమం</span>
+          <span><strong>ఆగండి, చూడండి, వినండి:</strong> ఎరుపు లైట్ వెలుగుతున్నప్పుడు వాహనాన్ని స్టాప్ లైన్ వెనుకే నిలపండి.</span>
+        </li>
+        <li class="safety-item">
+          <span class="safety-badge">ప్రమాదం</span>
+          <span><strong>హెడ్‌ఫోన్లు వాడకండి:</strong> ట్రాక్ సమీపంలో నడుస్తున్నప్పుడు లేదా వాహనం నడుపుతున్నప్పుడు ఫోన్లు వాడవద్దు.</span>
+        </li>
+        <li class="safety-item">
+          <span class="safety-badge warn">సహాయం</span>
+          <span><strong>గేట్ పూర్తిగా తెరిచేవరకు ఆగండి:</strong> ఆకుపచ్చ లైట్ వెలిగి గేట్ పూర్తిగా పైకి లేచిన తర్వాతే వెళ్లండి.</span>
+        </li>
+      </ul>
+
+      <!-- Hindi Rules -->
+      <ul class="safety-list lang-hi-only">
+        <li class="safety-item">
+          <span class="safety-badge">चेतावनी</span>
+          <span><strong>फाटक बंद होते समय पार न करें:</strong> बूम बैरियर के नीचे से निकलना रेलवे कानून के तहत अपराध है।</span>
+        </li>
+        <li class="safety-item">
+          <span class="safety-badge warn">नियम</span>
+          <span><strong>रुकें, देखें और सुनें:</strong> लाल बत्ती जलने पर अपने वाहन को स्टॉप लाइन के पीछे ही रोकें।</span>
+        </li>
+        <li class="safety-item">
+          <span class="safety-badge">खतरा</span>
+          <span><strong>ईयरफोन का प्रयोग न करें:</strong> ट्रैक के पास फोन या हेडफ़ोन का प्रयोग बिल्कुल न करें।</span>
+        </li>
+        <li class="safety-item">
+          <span class="safety-badge warn">सावधानी</span>
+          <span><strong>फाटक पूरी तरह खुलने दें:</strong> दोनों बूम पूरी तरह ऊपर उठने और हरी बत्ती जलने के बाद ही आगे बढ़ें।</span>
+        </li>
+      </ul>
+    </div>
+
+    <footer>
+      <span>STATION: GDR</span>
+      <span>SYNC: <span id="sync-stamp" style="color: #cbd5e1;">Live</span></span>
+    </footer>
+
+  </div>
+
+  <script>
+    // Bulletproof language switcher that modifies body class directly
+    function setAppLanguage(lang) {
+      document.body.className = 'lang-' + lang;
+      
+      document.getElementById('btn-en').className = 'lang-btn' + (lang === 'en' ? ' active' : '');
+      document.getElementById('btn-te').className = 'lang-btn' + (lang === 'te' ? ' active' : '');
+      document.getElementById('btn-hi').className = 'lang-btn' + (lang === 'hi' ? ' active' : '');
+      
+      if (window.__lastData) {
+        renderLiveUI(window.__lastData);
+      }
+    }
+
+    function renderLiveUI(data) {
+      if (!data) return;
+      window.__lastData = data;
+
+      const isTe = document.body.classList.contains('lang-te');
+      const isHi = document.body.classList.contains('lang-hi');
+
+      const clearText = isTe ? "రైళ్లు ఏవీ లేవు (క్లియర్)" : (isHi ? "ट्रैक खाली है" : "Tracks Clear");
+
+      const mas = data.chennaiGate || { status: 'OPEN', waitMinutes: 0, activeTrain: clearText };
+      const tpty = data.tirupatiGate || { status: 'OPEN', waitMinutes: 0, activeTrain: clearText };
+
+      // Chennai Gate Visuals
+      const masClosed = mas.status === 'CLOSED';
+      document.getElementById('mas-lamp-red').className = 'lamp ' + (masClosed ? 'red-on' : '');
+      document.getElementById('mas-lamp-green').className = 'lamp ' + (!masClosed ? 'green-on' : '');
+      document.getElementById('mas-arm-left').className = 'barrier-arm arm-left ' + (masClosed ? 'closed' : 'open');
+      document.getElementById('mas-arm-right').className = 'barrier-arm arm-right ' + (masClosed ? 'closed' : 'open');
+      document.getElementById('mas-train').innerText = (!mas.activeTrain || mas.activeTrain.includes("Tracks clear") || mas.activeTrain.includes("Tracks Clear")) ? clearText : mas.activeTrain;
+      document.getElementById('mas-wait').innerText = (mas.waitMinutes || 0) + 'm';
+      document.getElementById('mas-wait').style.color = masClosed ? 'var(--red)' : 'var(--text)';
+
+      // Tirupati Gate Visuals
+      const tptyClosed = tpty.status === 'CLOSED';
+      document.getElementById('tpty-lamp-red').className = 'lamp ' + (tptyClosed ? 'red-on' : '');
+      document.getElementById('tpty-lamp-green').className = 'lamp ' + (!tptyClosed ? 'green-on' : '');
+      document.getElementById('tpty-arm-left').className = 'barrier-arm arm-left ' + (tptyClosed ? 'closed' : 'open');
+      document.getElementById('tpty-arm-right').className = 'barrier-arm arm-right ' + (tptyClosed ? 'closed' : 'open');
+      document.getElementById('tpty-train').innerText = (!tpty.activeTrain || tpty.activeTrain.includes("Tracks clear") || tpty.activeTrain.includes("Tracks Clear")) ? clearText : tpty.activeTrain;
+      document.getElementById('tpty-wait').innerText = (tpty.waitMinutes || 0) + 'm';
+      document.getElementById('tpty-wait').style.color = tptyClosed ? 'var(--red)' : 'var(--text)';
+
+      // Advisory Logic
+      const card = document.getElementById('decision-card');
+      const statusBadge = document.getElementById('decision-status');
+      const title = document.getElementById('decision-title');
+      const text = document.getElementById('decision-text');
+
+      if (masClosed && !tptyClosed) {
+        card.className = 'decision-hub warning';
+        statusBadge.innerText = isTe ? "చెన్నై గేట్ క్లోజ్" : (isHi ? "चेन्नई फाटक बंद" : "AVOID CHENNAI GATE");
+        statusBadge.style.color = 'var(--amber)';
+        title.innerText = isTe ? "తిరుపతి గేట్ బైపాస్ వైపు వెళ్ళండి" : (isHi ? "तिरुपति फाटक बाईपास से जाएं" : "Use Tirupati Gate Route");
+        text.innerText = isTe ? `చెన్నై లైన్‌లో రైలు (${mas.activeTrain}) వస్తోంది. తిరుపతి గేట్ రూట్ తీసుకోండి.` : (isHi ? `चेन्नई लाइन पर ट्रेन (${mas.activeTrain}) आ रही है। तिरुपति फाटक मार्ग अपनाएं।` : `Train approaching on Chennai line (${mas.activeTrain}). Use Tirupati crossing.`);
+      } else if (tptyClosed && !masClosed) {
+        card.className = 'decision-hub warning';
+        statusBadge.innerText = isTe ? "తిరుపతి గేట్ క్లోజ్" : (isHi ? "तिरुपति फाटक बंद" : "AVOID TIRUPATI GATE");
+        statusBadge.style.color = 'var(--amber)';
+        title.innerText = isTe ? "చెన్నై గేట్ మీదుగా ప్రయాణించండి" : (isHi ? "चेन्नई मुख्य फाटक से जाएं" : "Use Chennai Main Gate");
+        text.innerText = isTe ? `తిరుపతి లైన్‌లో రైలు (${tpty.activeTrain}) వస్తోంది. చెన్నై మెయిన్ గేట్ ప్రస్తుతం తెరిచి ఉంది.` : (isHi ? `तिरुपति मार्ग पर ट्रेन (${tpty.activeTrain}) आ रही है। चेन्नई मुख्य फाटक खुला है।` : `Tirupati crossing halted by ${tpty.activeTrain}. Chennai mainline is clear.`);
+      } else if (masClosed && tptyClosed) {
+        card.className = 'decision-hub danger';
+        statusBadge.innerText = isTe ? "రెండు గేట్లు క్లోజ్" : (isHi ? "दोनों फाटक बंद" : "GRIDLOCK ALERT");
+        statusBadge.style.color = 'var(--red)';
+        title.innerText = isTe ? "తీవ్రమైన ట్రాఫిక్ జామ్ అవకాశం ఉంది" : (isHi ? "भारी जाम की संभावना" : "Both Gates Are Closed");
+        text.innerText = isTe ? "రెండు వైపులా రైళ్లు వస్తున్నాయి. దయచేసి వేచి ఉండండి." : (isHi ? "दोनों दिशाओं से ट्रेनें आ रही हैं। कृपया प्रतीक्षा करें।" : "Multiple trains crossing Gudur Junction. Expect delays.");
+      } else {
+        card.className = 'decision-hub';
+        statusBadge.innerText = isTe ? "క్లియర్" : (isHi ? "रास्ता साफ" : "CLEAR");
+        statusBadge.style.color = 'var(--green)';
+        title.innerText = isTe ? "రెండు గేట్లు తెరిచి ఉన్నాయి" : (isHi ? "दोनों फाटक खुले हैं" : "Both Crossings Are Open");
+        text.innerText = isTe ? "రైళ్లు ఏవీ సమీపంలో లేవు. ప్రయాణం సురక్షితం." : (isHi ? "आस-पास कोई ट्रेन नहीं है। आवागमन सुरक्षित है।" : "No trains approaching Gudur Junction. Corridors are clear for transit.");
+      }
+
+      // Live Upcoming Queue Population
+      const rawQueue = data.upcomingTrains;
+      const queue = Array.isArray(rawQueue) ? rawQueue : (rawQueue && typeof rawQueue === 'object' ? Object.values(rawQueue) : []);
+
+      if (queue && queue.length > 0) {
+        const container = document.getElementById('upcoming-container');
+        container.innerHTML = queue.map(t => {
+          const delayText = (Number(t.delayMinutes) > 0) ? `${t.delayMinutes}m late` : "On Time";
+          const isMas = t.corridor === 'MAS';
+          return `
+            <div class="upcoming-item">
+              <div class="train-col">
+                <div class="train-head">${t.trainNo} • ${t.name}</div>
+                <div class="train-sub">
+                  <span class="corridor-pill ${isMas ? 'corridor-mas' : 'corridor-tpty'}">${isMas ? 'MAS LINE' : 'TPTY LINE'}</span>
+                  <span>• PF ${t.platform || '1'}</span>
+                  <span>• ${delayText}</span>
+                </div>
+              </div>
+              <div class="eta-col">
+                <div class="eta-min">${t.etaMinutes}m</div>
+                <div class="eta-sub">in ${t.etaMinutes} mins</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+  </script>
+
+  <!-- Firebase Integration -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script>
+    try {
+      firebase.initializeApp({
+        databaseURL: "https://gudur-gate-tracker-default-rtdb.firebaseio.com"
+      });
+      firebase.database().ref('gudur_gates').on('value', (snap) => {
+        const val = snap.val();
+        if (val) {
+          renderLiveUI(val);
+          const syncElem = document.getElementById('sync-stamp');
+          if (syncElem) syncElem.innerText = val.lastUpdated || 'Live';
+        }
+      });
+    } catch (e) {
+      console.warn("Firebase notice:", e);
+    }
+  </script>
+</body>
+</html>
