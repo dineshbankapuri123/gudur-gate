@@ -1,10 +1,28 @@
 require("dotenv").config();
+
 const axios = require("axios");
 const admin = require("firebase-admin");
 const { getDatabase } = require("firebase-admin/database");
 const { cert } = require("firebase-admin/app");
 
-const serviceAccount = require("./serviceAccountKey.json");
+// ============================================================
+// FIREBASE CONFIGURATION
+// ============================================================
+
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  console.error("❌ FIREBASE_SERVICE_ACCOUNT environment variable is missing.");
+  process.exit(1);
+}
+
+let serviceAccount;
+
+try {
+  serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+} catch (error) {
+  console.error("❌ FIREBASE_SERVICE_ACCOUNT contains invalid JSON.");
+  console.error(error.message);
+  process.exit(1);
+}
 
 admin.initializeApp({
   credential: cert(serviceAccount),
@@ -14,116 +32,325 @@ admin.initializeApp({
 const db = getDatabase();
 const gateRef = db.ref("gudur_gates");
 
-const RAILRADAR_API_KEY = String(process.env.RAILRADAR_API_KEY || "").trim().replace(/['"]+/g, '');
+// ============================================================
+// RAILRADAR CONFIGURATION
+// ============================================================
+
+const RAILRADAR_API_KEY = String(
+  process.env.RAILRADAR_API_KEY || ""
+)
+  .trim()
+  .replace(/['"]+/g, "");
+
 const RAILRADAR_BASE_URL = "https://api.railradar.in/v1";
 
+if (!RAILRADAR_API_KEY) {
+  console.warn("⚠️ RAILRADAR_API_KEY environment variable is missing.");
+}
+
+// ============================================================
+// TIRUPATI CORRIDOR TRAINS
+// ============================================================
+
 const TIRUPATI_CORRIDOR_TRAINS = new Set([
-  "12733", "12734", "17487", "17488", "12763", "12764", 
-  "17261", "17262", "17479", "17480", "07669", "07670"
+  "12733",
+  "12734",
+  "17487",
+  "17488",
+  "12763",
+  "12764",
+  "17261",
+  "17262",
+  "17479",
+  "17480",
+  "07669",
+  "07670"
 ]);
+
+// ============================================================
+// NORTH-BOUND TRAIN DETECTION
+// ============================================================
 
 function isNorthBound(trainName, destination) {
   const dest = String(destination || "").toUpperCase();
-  return dest.includes("VIJAYAWADA") || dest.includes("BZA") || dest.includes("NELLORE") || dest.includes("NLR") || dest.includes("HOWRAH") || dest.includes("HWH");
+
+  return (
+    dest.includes("VIJAYAWADA") ||
+    dest.includes("BZA") ||
+    dest.includes("NELLORE") ||
+    dest.includes("NLR") ||
+    dest.includes("HOWRAH") ||
+    dest.includes("HWH")
+  );
 }
 
+// ============================================================
+// TIME PARSER
+// ============================================================
+
 function parseTimeToMinutes(timeStr, delayMinutes = 0) {
-  if (!timeStr) return -1;
-  
+  if (!timeStr) {
+    return -1;
+  }
+
   let totalMinutes = -1;
+
   const date = new Date(timeStr);
-  
+
   if (!isNaN(date.getTime())) {
-    totalMinutes = date.getHours() * 60 + date.getMinutes();
+    totalMinutes =
+      date.getHours() * 60 +
+      date.getMinutes();
   } else {
-    const match = String(timeStr).trim().match(/(\d{1,2}):(\d{2})/);
+    const match = String(timeStr)
+      .trim()
+      .match(/(\d{1,2}):(\d{2})/);
+
     if (match) {
-      totalMinutes = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+      totalMinutes =
+        parseInt(match[1], 10) * 60 +
+        parseInt(match[2], 10);
     }
   }
 
-  if (totalMinutes === -1) return -1;
+  if (totalMinutes === -1) {
+    return -1;
+  }
+
   return totalMinutes + Number(delayMinutes || 0);
 }
+
+// ============================================================
+// UPDATE GATE SYSTEM
+// ============================================================
 
 async function updateGateSystem() {
   try {
     const now = new Date();
-    const currentMin = now.getHours() * 60 + now.getMinutes();
-    console.log(`\n[${now.toLocaleTimeString()}] Querying RailRadar Live Station Board for GDR...`);
 
-    const boardRes = await axios.get(`${RAILRADAR_BASE_URL}/stations/GDR/live?hours=4`, {
-      headers: { 
-        'Authorization': `Bearer ${RAILRADAR_API_KEY}`
-      },
-      timeout: 12000
-    });
+    const currentMin =
+      now.getHours() * 60 +
+      now.getMinutes();
+
+    console.log(
+      `\n[${now.toLocaleTimeString()}] Querying RailRadar Live Station Board for GDR...`
+    );
+
+    // ----------------------------------------------------------
+    // RAILRADAR REQUEST
+    // ----------------------------------------------------------
+
+    const boardRes = await axios.get(
+      `${RAILRADAR_BASE_URL}/stations/GDR/live?hours=4`,
+      {
+        headers: {
+          Authorization: `Bearer ${RAILRADAR_API_KEY}`
+        },
+        timeout: 12000
+      }
+    );
 
     const responseBody = boardRes.data;
-    const trainsArray = responseBody?.data?.trains || [];
-    if (!Array.isArray(trainsArray)) return;
+
+    const trainsArray =
+      responseBody?.data?.trains || [];
+
+    if (!Array.isArray(trainsArray)) {
+      console.error(
+        "❌ RailRadar returned invalid train data."
+      );
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // DEFAULT GATE STATUS
+    // ----------------------------------------------------------
 
     const upcomingList = [];
-    let masGate = { status: "OPEN", waitMinutes: 0, activeTrain: "Tracks clear" };
-    let tptyGate = { status: "OPEN", waitMinutes: 0, activeTrain: "Tracks clear" };
+
+    let masGate = {
+      status: "OPEN",
+      waitMinutes: 0,
+      activeTrain: "Tracks clear"
+    };
+
+    let tptyGate = {
+      status: "OPEN",
+      waitMinutes: 0,
+      activeTrain: "Tracks clear"
+    };
+
+    // ----------------------------------------------------------
+    // PROCESS EACH TRAIN
+    // ----------------------------------------------------------
 
     for (const item of trainsArray) {
       const train = item.train || {};
       const live = item.live || {};
       const stop = item.stop || {};
-      
-      const trainNo = String(train.number || "").trim();
-      const trainName = train.name || `Express ${trainNo}`;
-      const destination = train.destination || train.to || item.destination || "";
-      
-      const delayMin = Number(live.delayMinutes || 0);
-      
-      // Parse arrival and departure times to handle platform halts correctly
-      const arrTimeStr = stop.arrival || live.expectedArrivalTime || "";
-      const depTimeStr = stop.departure || live.expectedDepartureTime || arrTimeStr;
-      
-      const arrMin = parseTimeToMinutes(arrTimeStr, delayMin);
-      const depMin = parseTimeToMinutes(depTimeStr, delayMin);
-      
-      if (arrMin === -1) continue;
+
+      const trainNo = String(
+        train.number || ""
+      ).trim();
+
+      const trainName =
+        train.name ||
+        `Express ${trainNo}`;
+
+      const destination =
+        train.destination ||
+        train.to ||
+        item.destination ||
+        "";
+
+      const delayMin = Number(
+        live.delayMinutes || 0
+      );
+
+      // --------------------------------------------------------
+      // ARRIVAL AND DEPARTURE
+      // --------------------------------------------------------
+
+      const arrTimeStr =
+        stop.arrival ||
+        live.expectedArrivalTime ||
+        "";
+
+      const depTimeStr =
+        stop.departure ||
+        live.expectedDepartureTime ||
+        arrTimeStr;
+
+      const arrMin =
+        parseTimeToMinutes(
+          arrTimeStr,
+          delayMin
+        );
+
+      const depMin =
+        parseTimeToMinutes(
+          depTimeStr,
+          delayMin
+        );
+
+      if (arrMin === -1) {
+        continue;
+      }
+
+      // --------------------------------------------------------
+      // CALCULATE TIME DIFFERENCE
+      // --------------------------------------------------------
 
       let diff = arrMin - currentMin;
-      if (diff < -720) diff += 1440;
-      if (diff > 720) diff -= 1440;
 
-      // Ignore trains that passed long ago or are too far out (> 45 mins)
-      if (diff < -15 || diff > 45) continue;
+      if (diff < -720) {
+        diff += 1440;
+      }
+
+      if (diff > 720) {
+        diff -= 1440;
+      }
+
+      // Ignore trains that passed more than 15 minutes ago
+      // or trains more than 45 minutes away.
+
+      if (diff < -15 || diff > 45) {
+        continue;
+      }
+
+      // --------------------------------------------------------
+      // DETERMINE CORRIDOR
+      // --------------------------------------------------------
 
       let corridor = "MAS";
-      if (TIRUPATI_CORRIDOR_TRAINS.has(trainNo)) {
+
+      if (
+        TIRUPATI_CORRIDOR_TRAINS.has(trainNo)
+      ) {
         corridor = "TPTY";
-      } else if (isNorthBound(trainName, destination)) {
+      } else if (
+        isNorthBound(
+          trainName,
+          destination
+        )
+      ) {
         corridor = "BZA";
       }
 
+      // --------------------------------------------------------
+      // ADD TRAIN TO UPCOMING LIST
+      // --------------------------------------------------------
+
       upcomingList.push({
-        trainNo,
+        trainNo: trainNo,
         name: trainName,
         etaMinutes: Math.max(0, diff),
         delayMinutes: delayMin,
-        corridor,
-        platform: String(live.platform || "1")
+        corridor: corridor,
+        platform: String(
+          live.platform || "1"
+        )
       });
 
-      // Gate Closure Conditions:
-      // 1. Train is approaching within 0 to 4 minutes.
-      // 2. OR Train has arrived and is currently dwelling at the station (current time is between arrival and departure).
-      const isApproaching = (diff >= 0 && diff <= 4);
-      const isAtStation = (currentMin >= arrMin && currentMin <= (depMin !== -1 ? depMin : arrMin + 5));
+      // --------------------------------------------------------
+      // GATE CLOSURE CONDITIONS
+      // --------------------------------------------------------
 
-      if (isApproaching || isAtStation) {
-        const waitTime = isAtStation ? Math.max(1, depMin - currentMin) : Math.max(1, diff + 2);
-        const label = `${trainNo} ${trainName} (${isAtStation ? 'At Station' : delayMin > 0 ? delayMin + 'm late' : 'On Time'})`;
+      const isApproaching =
+        diff >= 0 &&
+        diff <= 4;
+
+      const isAtStation =
+        currentMin >= arrMin &&
+        currentMin <=
+          (
+            depMin !== -1
+              ? depMin
+              : arrMin + 5
+          );
+
+      if (
+        isApproaching ||
+        isAtStation
+      ) {
+        let waitTime;
+
+        if (
+          isAtStation &&
+          depMin !== -1
+        ) {
+          waitTime = Math.max(
+            1,
+            depMin - currentMin
+          );
+        } else if (isAtStation) {
+          waitTime = 5;
+        } else {
+          waitTime = Math.max(
+            1,
+            diff + 2
+          );
+        }
+
+        const trainStatus =
+          isAtStation
+            ? "At Station"
+            : delayMin > 0
+              ? `${delayMin}m late`
+              : "On Time";
+
+        const label =
+          `${trainNo} ${trainName} (${trainStatus})`;
+
         const payload = {
           status: "CLOSED",
           waitMinutes: waitTime,
           activeTrain: label
         };
+
+        // ------------------------------------------------------
+        // UPDATE CORRESPONDING GATE
+        // ------------------------------------------------------
 
         if (corridor === "TPTY") {
           tptyGate = payload;
@@ -133,31 +360,98 @@ async function updateGateSystem() {
       }
     }
 
-    upcomingList.sort((a, b) => a.etaMinutes - b.etaMinutes);
-    const topUpcoming = upcomingList.slice(0, 5);
+    // ----------------------------------------------------------
+    // SORT TRAINS
+    // ----------------------------------------------------------
+
+    upcomingList.sort(
+      (a, b) =>
+        a.etaMinutes -
+        b.etaMinutes
+    );
+
+    const topUpcoming =
+      upcomingList.slice(0, 5);
+
+    // ----------------------------------------------------------
+    // UPDATE FIREBASE
+    // ----------------------------------------------------------
 
     await gateRef.set({
       tirupatiGate: tptyGate,
       chennaiGate: masGate,
       upcomingTrains: topUpcoming,
-      lastUpdated: now.toLocaleTimeString()
+      lastUpdated:
+        now.toLocaleTimeString()
     });
 
-    console.log(`[SYNC SUCCESS] Firebase updated.`);
-    console.log(` -> Chennai Gate : ${masGate.status} (${masGate.activeTrain})`);
-    console.log(` -> Tirupati Gate: ${tptyGate.status} (${tptyGate.activeTrain})`);
+    // ----------------------------------------------------------
+    // SUCCESS LOGS
+    // ----------------------------------------------------------
+
+    console.log(
+      "[SYNC SUCCESS] Firebase updated."
+    );
+
+    console.log(
+      ` -> Chennai Gate : ${masGate.status} (${masGate.activeTrain})`
+    );
+
+    console.log(
+      ` -> Tirupati Gate: ${tptyGate.status} (${tptyGate.activeTrain})`
+    );
+
+    console.log(
+      ` -> Upcoming trains: ${topUpcoming.length}`
+    );
 
   } catch (err) {
-    const status = err.response ? err.response.status : err.message;
-    console.error(`[ERROR] RailRadar fetch failed: ${status}`);
+    if (err.response) {
+      console.error(
+        `[ERROR] RailRadar fetch failed: HTTP ${err.response.status}`
+      );
+
+      console.error(
+        "Response:",
+        err.response.data
+      );
+    } else {
+      console.error(
+        `[ERROR] ${err.message}`
+      );
+    }
   }
 }
 
-console.log("==========================================");
-console.log(" RailRadar Real-time Gate Monitor Active ");
-console.log(" Chennai Gate:  14.13968 N, 79.84419 E   ");
-console.log(" Tirupati Gate: 14.14024 N, 79.84361 E   ");
-console.log("==========================================");
+// ============================================================
+// START APPLICATION
+// ============================================================
 
+console.log(
+  "=========================================="
+);
+
+console.log(
+  " RailRadar Real-time Gate Monitor Active "
+);
+
+console.log(
+  " Chennai Gate:  14.13968 N, 79.84419 E   "
+);
+
+console.log(
+  " Tirupati Gate: 14.14024 N, 79.84361 E   "
+);
+
+console.log(
+  "=========================================="
+);
+
+// Run immediately
 updateGateSystem();
-setInterval(updateGateSystem, 180000);
+
+// Run every 3 minutes
+setInterval(
+  updateGateSystem,
+  180000
+);
